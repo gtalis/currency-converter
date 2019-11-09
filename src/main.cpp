@@ -2,16 +2,47 @@
 #include <unistd.h>
 #include <string>
 
+static const int NO_ARGS 					= 1;
+static const int NUM_OF_ARGS_VERSION_HELP	= 2;
+static const int NUM_OF_ARGS_CONVERSION		= 7;
+
+void usage()
+{
+	std::cout <<
+		"Usage: \n" \
+		"  currencyconverter [options]\n" \
+		"  currencyconverter -s <sum> -f <currency> -t <currency>\n\n" \
+		"Performs currency conversion based on European Central Bank reference rates \n\n" \
+		"Options: \n" \
+		"-h 		Displays this help message\n" \
+		"-v 		Displays tool version\n" \
+		"-t <currency>	Defines the currency to convert the sum to\n" \
+		"-f <currency>	Defines the currency to convert the sum from\n" \
+		"-s <sum>	Sets the the sum to convert\n";
+}
+
 int main(int argc, char **argv)
 {
 	CurrencyConverter::RateManager &rr = CurrencyConverter::RateManager::Instance();
 	
-	std::string fromCurrency;
-	std::string toCurrency;
+	std::string fromCurrency = {};
+	std::string toCurrency = {};
 	double sum = 0;
+
+	// For now, we only accept:
+	// - no arguments
+	// - one argument (help or version)
+	// - six arguments: sum, source currency, destination currency
+	if ((argc != NO_ARGS ) // no arguments
+		&& (argc != NUM_OF_ARGS_VERSION_HELP) // help / version
+		&& (argc != NUM_OF_ARGS_CONVERSION) // conversion
+		) {
+		usage();
+		return 0;
+	}
 	
 	int c ;
-    while( ( c = getopt (argc, argv, "f:t:s:") ) != -1 ) 
+    while( ( c = getopt (argc, argv, "f:t:s:vh") ) != -1 )
     {
         switch(c)
         {
@@ -24,6 +55,12 @@ int main(int argc, char **argv)
             case 's':
                 if(optarg) sum = std::atof(optarg);
                 break;
+			case 'v':
+				break;
+			case 'h':
+				usage();
+				return 0;
+				break;
         }
     }
 	
