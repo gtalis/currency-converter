@@ -31,7 +31,7 @@ include_directories(${CURL_INCLUDE_DIRS})
 include_directories(${LIBXML2_INCLUDE_DIR})
 # include_directories(${NCURSES_INCLUDE_DIRS})
 
-add_executable (currencyconverter src/rateretriever.cpp)
+add_executable (currencyconverter src/rateManager.cpp)
 target_link_libraries(currencyconverter ${CURL_LIBRARIES})
 target_link_libraries(currencyconverter ${LIBXML2_LIBRARIES})
 #target_link_libraries(nlsusb ${NCURSES_LIBRARIES})

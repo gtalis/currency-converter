@@ -6,10 +6,10 @@ namespace currencyconverter {
 
 typedef std::map <std::string, double> CurrencyRatesTable;
 
-class RateRetriever {
+class RateManager {
 public:
-	RateRetriever();
-	~RateRetriever();
+	RateManager();
+	~RateManager();
 	void getRates(CurrencyRatesTable &);
 	void decodeData(void *buffer, size_t len);
 
@@ -17,7 +17,7 @@ private:
 	void getDailyRates();
 	void storeDailyRates();
 
-	std::map<std::string, double> m_rates;
+	CurrencyRatesTable m_rates;
 };
 
 }

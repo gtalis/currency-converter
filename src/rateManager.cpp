@@ -1,4 +1,4 @@
-#include "rateretriever.h"
+#include "rateManager.h"
 #include <curl/curl.h>
 #include <libxml/xmlreader.h>
 #include <libxml/parser.h>
@@ -10,24 +10,24 @@
 
 using namespace currencyconverter;
 
-void RateRetriever::getRates(CurrencyRatesTable & rates)
+void RateManager::getRates(CurrencyRatesTable & rates)
 {
 	getDailyRates();
 	rates = m_rates;
 }
 
-RateRetriever::RateRetriever()
+RateManager::RateManager()
 {
 	m_rates = {};
 }
 	
-RateRetriever::~RateRetriever()
+RateManager::~RateManager()
 {
 }
 
 #define ATTR_NAME_IS(A)  !strcmp( (const char *)attr->name, A)
 
-static void print_element_names(xmlNode * a_node, CurrencyRatesTable *rates)
+static void store_rates(xmlNode * a_node, CurrencyRatesTable *rates)
 {
     xmlNode *cur_node = NULL;
     xmlNode *children = NULL;
@@ -51,18 +51,18 @@ static void print_element_names(xmlNode * a_node, CurrencyRatesTable *rates)
 
 			if (currency != "none") {
 				rates->insert(std::pair<std::string, double> (currency, currencyVal) );
-				printf("New Currency (%s) Value  (%f) new size of rates: %d\n", currency.c_str(), currencyVal, rates->size());
+				printf("New Currency (%s) Value  (%.4f)\n", currency.c_str(), currencyVal);
 			}
 			
 			// Reset currency name
 			currency= "none";
         }
 
-        print_element_names(cur_node->children, rates);
+        store_rates(cur_node->children, rates);
     }
 }
 
-void RateRetriever::decodeData(void *buffer, size_t size)
+void RateManager::decodeData(void *buffer, size_t size)
 {
    /*
      * The document being in memory, it have no base per RFC 2396,
@@ -76,18 +76,18 @@ void RateRetriever::decodeData(void *buffer, size_t size)
 
     /*Get the root element node */
     xmlNode *root_element = xmlDocGetRootElement(doc);	
-    print_element_names(root_element, &m_rates);
+    store_rates(root_element, &m_rates);
 }
 
 static size_t decode_data(void *buffer, size_t size, size_t nmemb, void *userp)
 {
-	RateRetriever *rr = (RateRetriever *) userp;
+	RateManager *rr = (RateManager *) userp;
 
 	rr->decodeData(buffer, nmemb);
 	return nmemb;
 }
 
-void RateRetriever::getDailyRates()
+void RateManager::getDailyRates()
 {
   CURL *curl;
   CURLcode res;
@@ -140,7 +140,7 @@ void RateRetriever::getDailyRates()
   curl_global_cleanup();	
 }
 
-void RateRetriever::storeDailyRates()
+void RateManager::storeDailyRates()
 {
 	
 }
@@ -148,8 +148,11 @@ void RateRetriever::storeDailyRates()
 static double currencyToRate(CurrencyRatesTable *rates, std::string &currency)
 {
 	double rate;
-	if (currency == "EUR") {
-		rate = (double)1;
+
+	// EUR is not part of table, so we need to
+	// treat it separately
+	if (currency == "EUR"){
+		rate = (double) 1;
 		return rate;
 	}
 
@@ -165,31 +168,28 @@ static double currencyToRate(CurrencyRatesTable *rates, std::string &currency)
 
 int main(int argc, char **argv)
 {
-	RateRetriever rr;
+	RateManager rr;
 
 	CurrencyRatesTable todayRates;
 	rr.getRates(todayRates);    
 	
 	std::string fromCurrency;
 	std::string toCurrency;
-	double sum;
+	double sum = 0;
 	
 	int c ;
-    while( ( c = getopt (argc, argv, "f:t:v:") ) != -1 ) 
+    while( ( c = getopt (argc, argv, "f:t:s:") ) != -1 ) 
     {
         switch(c)
         {
             case 'f':
                 if(optarg) fromCurrency = optarg;
-                printf("Need to perform a conversion from %s\n", fromCurrency.c_str());
                 break;
             case 't':
                 if(optarg) toCurrency = optarg;
-                printf("Need to perform a conversion to %s\n", toCurrency.c_str());
                 break;
-            case 'v':
+            case 's':
                 if(optarg) sum = std::atof(optarg);
-                printf("Need to convert %f\n", sum);
                 break;
         }
     }
@@ -203,11 +203,13 @@ int main(int argc, char **argv)
 	if (fromRate < 0) {
 		std::cout << "ERROR: Could not find Currency " << fromCurrency << '\n';
 	}
+
+    if (!sum or sum < 0) {
+        std::cout << "ERROR: Sum to convert (" << sum << ") is invalid\n";
+    }
 	
 	double convertedSum = sum * toRate / fromRate;
-	printf("%f %s = %f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
+	printf("%.4f %s = %.4f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
 
 	return 0;
 }
-
-
