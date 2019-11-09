@@ -1,6 +1,5 @@
 #include <iostream>
 #include <map>
-#include <stdlib.h>
 #include <string>
 
 namespace CurrencyConverter {
@@ -19,11 +18,10 @@ private:
 	int getRates();
 	int getStoredRates();
 	int getECBRates();
-	void storeDailyRates();
+	void storeECBRates();
 	double CurrencyToRate(const std::string &currencyCode);
 
 	CurrencyRatesTable m_rates;
     static RateManager m_instance;
 };
-
-}
+} // namespace CurrencyConverter

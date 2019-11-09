@@ -4,8 +4,10 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <exception>
+#include <fstream>
 
 using namespace CurrencyConverter;
 
@@ -18,7 +20,6 @@ RateManager& RateManager::Instance()
 {
     return m_instance;
 }
-
 
 int RateManager::getRates()
 {
@@ -39,7 +40,6 @@ RateManager::~RateManager()
 }
 
 #define ATTR_NAME_IS(A)  !strcmp( (const char *)attr->name, A)
-
 static void _extractRatesFromXmlDoc(xmlNode * a_node, CurrencyRatesTable *rates)
 {
     xmlNode *cur_node = NULL;
@@ -58,7 +58,9 @@ static void _extractRatesFromXmlDoc(xmlNode * a_node, CurrencyRatesTable *rates)
             		currency = (const char *)attr->children->content;
             	} else if (ATTR_NAME_IS("rate"))  {
             		currencyVal = std::atof( (const char *) attr->children->content);
-            	}            	
+                } else if (ATTR_NAME_IS("time"))  {
+                    printf("Exchange rate date is %s\n", (char *) attr->children->content);
+                }
             	attr = attr->next;
             }
 
@@ -100,74 +102,109 @@ static size_t _ExtractRatesFromECBXml(void *buffer, size_t size, size_t nmemb, v
 	return nmemb;
 }
 
-int RateManager::getStoredRates()
-{
-    return -1;
-}
-
 int RateManager::getECBRates()
 {
-  CURL *curl;
-  CURLcode res;
+    CURL *curl;
+    CURLcode ret = CURLE_COULDNT_CONNECT;
 
-  int ret = -1;
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    curl = curl_easy_init();
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, EURO_FOREIGN_EXCHANGE_REFERENCE_RATES_LINK);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, _ExtractRatesFromECBXml);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
 
-  curl_global_init(CURL_GLOBAL_DEFAULT);
+        /* Try and get the XML file from European Central Bank */
+        ret = curl_easy_perform(curl);
+        if (ret != CURLE_OK) {
+            std::cerr <<  "ERROR: Failed to get exchange rates from European Central Bank: " <<
+                curl_easy_strerror(ret) << std::endl;
+        }
 
-  curl = curl_easy_init();
-  if(curl) {
-    curl_easy_setopt(curl, CURLOPT_URL, EURO_FOREIGN_EXCHANGE_REFERENCE_RATES_LINK);
+        curl_easy_cleanup(curl);
 
-#ifdef SKIP_PEER_VERIFICATION
-    /*
-     * If you want to connect to a site who isn't using a certificate that is
-     * signed by one of the certs in the CA bundle you have, you can skip the
-     * verification of the server's certificate. This makes the connection
-     * A LOT LESS SECURE.
-     *
-     * If you have a CA cert for the server stored someplace else than in the
-     * default bundle, then the CURLOPT_CAPATH option might come handy for
-     * you.
-     */
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-#endif
-
-#ifdef SKIP_HOSTNAME_VERIFICATION
-    /*
-     * If the site you're connecting to uses a different host name that what
-     * they have mentioned in their server certificate's commonName (or
-     * subjectAltName) fields, libcurl will refuse to connect. You can skip
-     * this check, but this will make the connection less secure.
-     */
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-#endif
-
-	/* Define callback function */
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, _ExtractRatesFromECBXml);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, this); 
-
-    /* Perform the request, res will get the return code */
-    res = curl_easy_perform(curl);
-    /* Check for errors */
-    if(res != CURLE_OK) {
-      fprintf(stderr, "ERROR: Failed to get exchange rates from European Central Bank: %s\n",
-              curl_easy_strerror(res));
-      ret = -1;
-    } else {
-        ret = 0;
+        // Store rates locally
+        storeECBRates();
     }
 
-    /* always cleanup */
-    curl_easy_cleanup(curl);
-  }
-
-  curl_global_cleanup();
-  return ret;
+    curl_global_cleanup();
+    return (ret == CURLE_OK) ? 0 : -1;
 }
 
-void RateManager::storeDailyRates()
+static const char *XDG_LOCAL_DIR = "/.local/share";
+static const char *LOCAL_STORAGE_FN = "currency_converter.gt";
+
+static std::string _getStorageFileName()
 {
-	
+    std::string dataHomeDir;
+    char *_dataHomeDir = getenv("XDG_DATA_HOME");
+    if (_dataHomeDir) {
+        dataHomeDir += _dataHomeDir;
+    } else {
+        _dataHomeDir = getenv("HOME");
+        if (! _dataHomeDir) {
+            printf("Failed to find local home directory\n");
+            return {};
+        }
+
+        dataHomeDir += _dataHomeDir;
+        dataHomeDir += XDG_LOCAL_DIR;
+    }
+
+    std::string storageFn = dataHomeDir;
+    storageFn += "/";
+    storageFn += LOCAL_STORAGE_FN;
+
+    return storageFn;
+}
+
+void RateManager::storeECBRates()
+{
+    std::string localStorageFn = _getStorageFileName();
+
+    // Try and open local storage file for writing
+    std::ofstream ofs;
+    ofs.open (localStorageFn, std::ofstream::out);
+
+    if (ofs.is_open()) {
+        for (auto& currency : m_rates) {
+            ofs << currency.first << ":" << currency.second << '\n';
+        }
+    }
+
+    ofs.close();
+}
+
+int RateManager::getStoredRates()
+{
+    std::string localStorageFn = _getStorageFileName();
+
+    // Try and open local storage file for reading
+    std::ifstream ifs;
+    ifs.open (localStorageFn, std::ifstream::in);
+    if (!ifs.is_open()) {
+        return -1;
+    }
+
+    // Now loop through each line of the file to retrieve stored data
+    int ret = -1;
+    char line[32];
+    std::string lineS;
+    while (!ifs.eof()) {
+        ifs.getline(line, 32);
+        lineS = line;
+        // Last line is an empty line. We must ignore it
+        if (! lineS.empty()) {
+            // Currency code is 3 letters long
+            std::string currencyCode = lineS.substr(0,3);
+            // Rest of the line is the currency rate
+            double currencyRate = std::atof(lineS.substr(4, lineS.size()).c_str() );
+            m_rates.insert(std::pair<std::string, double> (currencyCode, currencyRate) );
+            ret = 0;
+        }
+    }
+
+    return ret;
 }
 
 double RateManager::CurrencyToRate(const std::string &currency)
