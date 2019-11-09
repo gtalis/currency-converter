@@ -5,10 +5,17 @@
 #include <libxml/tree.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 #include <exception>
 
-using namespace currencyconverter;
+using namespace CurrencyConverter;
+
+RateManager RateManager::m_instance = RateManager();
+
+RateManager& RateManager::Instance()
+{
+    return m_instance;
+}
+
 
 void RateManager::getRates(CurrencyRatesTable & rates)
 {
@@ -145,7 +152,7 @@ void RateManager::storeDailyRates()
 	
 }
 
-static double currencyToRate(CurrencyRatesTable *rates, std::string &currency)
+double RateManager::CurrencyToRate(const std::string &currency)
 {
 	double rate;
 
@@ -157,7 +164,7 @@ static double currencyToRate(CurrencyRatesTable *rates, std::string &currency)
 	}
 
 	try {
-		rate = rates->at(currency);
+		rate = m_rates.at(currency);
 	} catch (std::exception &e) {
 		return (double) -1;
 	}
@@ -165,51 +172,24 @@ static double currencyToRate(CurrencyRatesTable *rates, std::string &currency)
 	return rate;	
 }
 
-
-int main(int argc, char **argv)
+double RateManager::Convert(const double &sum, const std::string &fromCurrency, const std::string &toCurrency)
 {
-	RateManager rr;
-
-	CurrencyRatesTable todayRates;
-	rr.getRates(todayRates);    
-	
-	std::string fromCurrency;
-	std::string toCurrency;
-	double sum = 0;
-	
-	int c ;
-    while( ( c = getopt (argc, argv, "f:t:s:") ) != -1 ) 
-    {
-        switch(c)
-        {
-            case 'f':
-                if(optarg) fromCurrency = optarg;
-                break;
-            case 't':
-                if(optarg) toCurrency = optarg;
-                break;
-            case 's':
-                if(optarg) sum = std::atof(optarg);
-                break;
-        }
+    double toRate = CurrencyToRate(toCurrency);
+    if (toRate < 0) {
+        std::cerr << "ERROR: Could not find Currency " << toCurrency << '\n';
+        return (double) -1;
     }
-	
-	double toRate = currencyToRate(&todayRates, toCurrency);
-	if (toRate < 0) {
-		std::cout << "ERROR: Could not find Currency " << toCurrency << '\n';
-	}
-	
-	double fromRate = currencyToRate(&todayRates, fromCurrency);
-	if (fromRate < 0) {
-		std::cout << "ERROR: Could not find Currency " << fromCurrency << '\n';
-	}
 
-    if (!sum or sum < 0) {
-        std::cout << "ERROR: Sum to convert (" << sum << ") is invalid\n";
+    double fromRate = CurrencyToRate(fromCurrency);
+    if (fromRate < 0) {
+        std::cerr << "ERROR: Could not find Currency " << fromCurrency << '\n';
+        return (double) -1;
     }
-	
-	double convertedSum = sum * toRate / fromRate;
-	printf("%.4f %s = %.4f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
 
-	return 0;
+   if (sum < 0) {
+        std::cerr << "ERROR: Sum to convert (" << sum << ") is invalid\n";
+        return (double) -1;
+    }
+
+    return sum * toRate / fromRate;
 }
