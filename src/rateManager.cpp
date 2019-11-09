@@ -9,6 +9,10 @@
 
 using namespace CurrencyConverter;
 
+static const char * EURO_FOREIGN_EXCHANGE_REFERENCE_RATES_LINK =
+    "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
+
+
 RateManager RateManager::m_instance = RateManager();
 
 RateManager& RateManager::Instance()
@@ -103,7 +107,7 @@ void RateManager::getDailyRates()
 
   curl = curl_easy_init();
   if(curl) {
-    curl_easy_setopt(curl, CURLOPT_URL, "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml");
+    curl_easy_setopt(curl, CURLOPT_URL, EURO_FOREIGN_EXCHANGE_REFERENCE_RATES_LINK);
 
 #ifdef SKIP_PEER_VERIFICATION
     /*
