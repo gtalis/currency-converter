@@ -6,6 +6,15 @@ static const int NO_ARGS 					= 1;
 static const int NUM_OF_ARGS_VERSION_HELP	= 2;
 static const int NUM_OF_ARGS_CONVERSION		= 7;
 
+void print_version()
+{
+	std::cout <<
+		"currencyconverter " \
+		VERSION \
+		"\n" \
+		"Copyright (c) 2019 Gilles Talis \n";
+}
+
 void usage()
 {
 	std::cout <<
@@ -56,6 +65,8 @@ int main(int argc, char **argv)
                 if(optarg) sum = std::atof(optarg);
                 break;
 			case 'v':
+				print_version();
+				return 0;
 				break;
 			case 'h':
 				usage();
