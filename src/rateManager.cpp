@@ -12,7 +12,6 @@ using namespace CurrencyConverter;
 static const char * EURO_FOREIGN_EXCHANGE_REFERENCE_RATES_LINK =
     "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
 
-
 RateManager RateManager::m_instance = RateManager();
 
 RateManager& RateManager::Instance()
@@ -21,10 +20,13 @@ RateManager& RateManager::Instance()
 }
 
 
-void RateManager::getRates(CurrencyRatesTable & rates)
+int RateManager::getRates()
 {
-	getDailyRates();
-	rates = m_rates;
+	if ( getStoredRates() < 0 ) {
+        return getECBRates();
+    }
+
+    return 0;
 }
 
 RateManager::RateManager()
@@ -38,7 +40,7 @@ RateManager::~RateManager()
 
 #define ATTR_NAME_IS(A)  !strcmp( (const char *)attr->name, A)
 
-static void store_rates(xmlNode * a_node, CurrencyRatesTable *rates)
+static void _extractRatesFromXmlDoc(xmlNode * a_node, CurrencyRatesTable *rates)
 {
     xmlNode *cur_node = NULL;
     xmlNode *children = NULL;
@@ -69,11 +71,11 @@ static void store_rates(xmlNode * a_node, CurrencyRatesTable *rates)
 			currency= "none";
         }
 
-        store_rates(cur_node->children, rates);
+        _extractRatesFromXmlDoc(cur_node->children, rates);
     }
 }
 
-void RateManager::decodeData(void *buffer, size_t size)
+void RateManager::ExtractRatesFromECBXml(void *buffer, size_t size)
 {
    /*
      * The document being in memory, it have no base per RFC 2396,
@@ -87,21 +89,28 @@ void RateManager::decodeData(void *buffer, size_t size)
 
     /*Get the root element node */
     xmlNode *root_element = xmlDocGetRootElement(doc);	
-    store_rates(root_element, &m_rates);
+    _extractRatesFromXmlDoc(root_element, &m_rates);
 }
 
-static size_t decode_data(void *buffer, size_t size, size_t nmemb, void *userp)
+static size_t _ExtractRatesFromECBXml(void *buffer, size_t size, size_t nmemb, void *userp)
 {
 	RateManager *rr = (RateManager *) userp;
 
-	rr->decodeData(buffer, nmemb);
+	rr->ExtractRatesFromECBXml(buffer, nmemb);
 	return nmemb;
 }
 
-void RateManager::getDailyRates()
+int RateManager::getStoredRates()
+{
+    return -1;
+}
+
+int RateManager::getECBRates()
 {
   CURL *curl;
   CURLcode res;
+
+  int ret = -1;
 
   curl_global_init(CURL_GLOBAL_DEFAULT);
 
@@ -134,21 +143,26 @@ void RateManager::getDailyRates()
 #endif
 
 	/* Define callback function */
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, decode_data);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, _ExtractRatesFromECBXml);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, this); 
 
     /* Perform the request, res will get the return code */
     res = curl_easy_perform(curl);
     /* Check for errors */
-    if(res != CURLE_OK)
-      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+    if(res != CURLE_OK) {
+      fprintf(stderr, "ERROR: Failed to get exchange rates from European Central Bank: %s\n",
               curl_easy_strerror(res));
+      ret = -1;
+    } else {
+        ret = 0;
+    }
 
     /* always cleanup */
     curl_easy_cleanup(curl);
   }
 
-  curl_global_cleanup();	
+  curl_global_cleanup();
+  return ret;
 }
 
 void RateManager::storeDailyRates()
@@ -178,6 +192,10 @@ double RateManager::CurrencyToRate(const std::string &currency)
 
 double RateManager::Convert(const double &sum, const std::string &fromCurrency, const std::string &toCurrency)
 {
+    if ( getRates() < 0) {
+        return (double) -1;
+    }
+
     double toRate = CurrencyToRate(toCurrency);
     if (toRate < 0) {
         std::cerr << "ERROR: Could not find Currency " << toCurrency << '\n';

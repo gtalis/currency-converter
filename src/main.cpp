@@ -5,9 +5,6 @@
 int main(int argc, char **argv)
 {
 	CurrencyConverter::RateManager &rr = CurrencyConverter::RateManager::Instance();
-
-	CurrencyConverter::CurrencyRatesTable todayRates;
-	rr.getRates(todayRates);   
 	
 	std::string fromCurrency;
 	std::string toCurrency;
@@ -31,7 +28,9 @@ int main(int argc, char **argv)
     }
 	
     double convertedSum = rr.Convert(sum, fromCurrency, toCurrency);
-	printf("%.4f %s = %.4f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
+    if (convertedSum >= 0) {
+		printf("%.4f %s = %.4f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
+	}
 
 	return 0;
 }
