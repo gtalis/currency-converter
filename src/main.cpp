@@ -1,17 +1,17 @@
 #include "rateManager.h"
 #include <unistd.h>
 #include <string>
+#include <ctime>
 
-static const int NO_ARGS 					= 1;
 static const int NUM_OF_ARGS_VERSION_HELP	= 2;
 static const int NUM_OF_ARGS_CONVERSION		= 7;
 
-void print_version()
+void print_details()
 {
 	std::cout <<
-		"currencyconverter " \
+		"CurrencyConverter " \
 		VERSION \
-		"\n" \
+		" - " \
 		"Copyright (c) 2019 Gilles Talis \n";
 }
 
@@ -30,6 +30,7 @@ void usage()
 		"-s <sum>	Sets the the sum to convert\n";
 }
 
+
 int main(int argc, char **argv)
 {
 	CurrencyConverter::RateManager &rr = CurrencyConverter::RateManager::Instance();
@@ -39,11 +40,9 @@ int main(int argc, char **argv)
 	double sum = 0;
 
 	// For now, we only accept:
-	// - no arguments
 	// - one argument (help or version)
 	// - six arguments: sum, source currency, destination currency
-	if ((argc != NO_ARGS ) // no arguments
-		&& (argc != NUM_OF_ARGS_VERSION_HELP) // help / version
+	if ( (argc != NUM_OF_ARGS_VERSION_HELP) // help / version
 		&& (argc != NUM_OF_ARGS_CONVERSION) // conversion
 		) {
 		usage();
@@ -65,7 +64,7 @@ int main(int argc, char **argv)
                 if(optarg) sum = std::atof(optarg);
                 break;
 			case 'v':
-				print_version();
+				print_details();
 				return 0;
 				break;
 			case 'h':
@@ -74,10 +73,14 @@ int main(int argc, char **argv)
 				break;
         }
     }
-	
-    double convertedSum = rr.Convert(sum, fromCurrency, toCurrency);
+
+
+	print_details();
+	double convertedSum = rr.Convert(sum, fromCurrency, toCurrency);
     if (convertedSum >= 0) {
-		printf("%.4f %s = %.4f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
+		time_t update = rr.GetRatesLastUpdatedDate();
+		printf("%.2f %s = %.2f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
+		std::cout << "European Central Bank reference rates last update: " << ctime ( &update );
 	}
 
 	return 0;

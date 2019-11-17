@@ -8,6 +8,7 @@
 #include <string.h>
 #include <exception>
 #include <fstream>
+#include "utils.h"
 
 using namespace CurrencyConverter;
 
@@ -21,59 +22,103 @@ RateManager& RateManager::Instance()
     return m_instance;
 }
 
-int RateManager::getRates()
-{
-	if ( getStoredRates() < 0 ) {
-        return getECBRates();
-    }
-
-    return 0;
-}
-
 RateManager::RateManager()
 {
-	m_rates = {};
+    m_rates = {};
+    m_lastUpdated = 0;
 }
 	
 RateManager::~RateManager()
 {
 }
 
+bool RateManager::storedRatesUpToDate()
+{
+    //
+    // From "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html"
+    // The reference rates are usually updated around 16:00 CET on every working day,
+    // except on TARGET closing days
+    // This means that reference rates are updated Monday to Friday around 15:00 UTC
+    // Our implementation gives time to the ECB to update the rates, so our reference
+    // update time will be a bit later than 15:00 UTC
+
+    // Here, implementation computes the last update date and time from the current UTC time
+    // and compares it with the last update date and time stored locally
+    // If these numbers differ, it means that rates are not up to date and must be updated.
+    //
+
+    std::string updateDateFn = _getLastUpdatedFileName();
+
+    // Try and open file that contains last updated date
+    std::ifstream ifs;
+    ifs.open (updateDateFn, std::ifstream::in);
+    if (!ifs.is_open()) {
+#ifdef DEBUG
+        std::cerr << "Failed to open " << updateDateFn << '\n';
+#endif
+        return false;
+    }
+
+    // Get last updated date from file: it is a time_t value in decimal format
+    char time[128];
+    ifs.getline(time, 128);
+    ifs.close();
+
+    // Get ECB updated time as per current date and time
+    // and compare with value retrieved from the file
+    time_t ecbUpdatedTime = getEcbLastUpdateTime();
+    time_t localUpdatedTime = static_cast<time_t> ( std::atoi ( time ) );
+
+    if ( localUpdatedTime < ecbUpdatedTime)
+        return false;
+
+#ifdef DEBUG
+    std::cout << "Rates are up to date: local=" << localUpdatedTime << ", website= " << ecbUpdatedTime << '\n';
+#endif
+
+    // Update "last updated" member variable
+    m_lastUpdated = localUpdatedTime;
+    return true;
+}
+
+
 #define ATTR_NAME_IS(A)  !strcmp( (const char *)attr->name, A)
-static void _extractRatesFromXmlDoc(xmlNode * a_node, CurrencyRatesTable *rates)
+static void _extractRatesFromXmlDoc(xmlNode * a_node, CurrencyRatesTable *rates, time_t *updateDate)
 {
     xmlNode *cur_node = NULL;
-    xmlNode *children = NULL;
-    
     xmlAttr *attr = NULL;
-    
     std::string currency = "none";
     double currencyVal;
 
     for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
         if (cur_node->type == XML_ELEMENT_NODE) {
-         	attr = cur_node->properties;
+            attr = cur_node->properties;
             while (attr) {
-            	if ( ATTR_NAME_IS("currency") ) {
-            		currency = (const char *)attr->children->content;
-            	} else if (ATTR_NAME_IS("rate"))  {
-            		currencyVal = std::atof( (const char *) attr->children->content);
+                if ( ATTR_NAME_IS("currency") ) {
+                    currency = (const char *)attr->children->content;
+                } else if (ATTR_NAME_IS("rate"))  {
+                    currencyVal = std::atof( (const char *) attr->children->content);
                 } else if (ATTR_NAME_IS("time"))  {
+#ifdef DEBUG
                     printf("Exchange rate date is %s\n", (char *) attr->children->content);
+#endif
+                    *updateDate = ecbDateToTime( (char *) attr->children->content );
                 }
-            	attr = attr->next;
+                attr = attr->next;
             }
 
-			if (currency != "none") {
-				rates->insert(std::pair<std::string, double> (currency, currencyVal) );
-				printf("New Currency (%s) Value  (%.4f)\n", currency.c_str(), currencyVal);
-			}
-			
-			// Reset currency name
-			currency= "none";
+            if (currency != "none") {
+                rates->insert(std::pair<std::string, double> (currency, currencyVal) );
+#ifdef DEBUG
+                printf("New Currency (%s) Value  (%.4f)\n", currency.c_str(), currencyVal);
+#endif
+            }
+
+            // Reset currency name
+            currency= "none";
         }
 
-        _extractRatesFromXmlDoc(cur_node->children, rates);
+        _extractRatesFromXmlDoc(cur_node->children, rates, updateDate);
     }
 }
 
@@ -90,8 +135,9 @@ void RateManager::ExtractRatesFromECBXml(void *buffer, size_t size)
     }
 
     /*Get the root element node */
-    xmlNode *root_element = xmlDocGetRootElement(doc);	
-    _extractRatesFromXmlDoc(root_element, &m_rates);
+    xmlNode *root_element = xmlDocGetRootElement(doc);
+
+    _extractRatesFromXmlDoc(root_element, &m_rates, &m_lastUpdated);
 }
 
 static size_t _ExtractRatesFromECBXml(void *buffer, size_t size, size_t nmemb, void *userp)
@@ -123,46 +169,20 @@ int RateManager::getECBRates()
 
         curl_easy_cleanup(curl);
 
-        // Store rates locally
+        // Store rates and update time locally
         storeECBRates();
+        storedECBUpdateTime();
     }
 
     curl_global_cleanup();
     return (ret == CURLE_OK) ? 0 : -1;
 }
 
-static const char *XDG_LOCAL_DIR = "/.local/share";
-static const char *LOCAL_STORAGE_FN = "currency_converter.gt";
-
-static std::string _getStorageFileName()
-{
-    std::string dataHomeDir;
-    char *_dataHomeDir = getenv("XDG_DATA_HOME");
-    if (_dataHomeDir) {
-        dataHomeDir += _dataHomeDir;
-    } else {
-        _dataHomeDir = getenv("HOME");
-        if (! _dataHomeDir) {
-            printf("Failed to find local home directory\n");
-            return {};
-        }
-
-        dataHomeDir += _dataHomeDir;
-        dataHomeDir += XDG_LOCAL_DIR;
-    }
-
-    std::string storageFn = dataHomeDir;
-    storageFn += "/";
-    storageFn += LOCAL_STORAGE_FN;
-
-    return storageFn;
-}
-
 void RateManager::storeECBRates()
 {
     std::string localStorageFn = _getStorageFileName();
 
-    // Try and open local storage file for writing
+    // Try and open local storage file for writing only
     std::ofstream ofs;
     ofs.open (localStorageFn, std::ofstream::out);
 
@@ -175,8 +195,31 @@ void RateManager::storeECBRates()
     ofs.close();
 }
 
+void RateManager::storedECBUpdateTime()
+{
+    std::string updateDateFn = _getLastUpdatedFileName();
+
+    // Try and open local "last updated date" for writing only
+    std::ofstream ofs;
+    ofs.open (updateDateFn, std::ofstream::out);
+
+    if (ofs.is_open()) {
+        ofs << m_lastUpdated;
+    }
+
+    ofs.close();
+}
+
 int RateManager::getStoredRates()
 {
+    // Check that stored rates are not outdated
+    if ( ! storedRatesUpToDate() ) {
+#ifdef DEBUG
+        std::cout << "Stored rates are outdated \n";
+#endif
+        return -1;
+    }
+
     std::string localStorageFn = _getStorageFileName();
 
     // Try and open local storage file for reading
@@ -207,24 +250,35 @@ int RateManager::getStoredRates()
     return ret;
 }
 
+int RateManager::getRates()
+{
+    if ( getStoredRates() < 0 ) {
+        // stored rates are either outdated or non present:
+        // get rates from European Central Bank website
+        return getECBRates();
+    }
+
+    return 0;
+}
+
 double RateManager::CurrencyToRate(const std::string &currency)
 {
-	double rate;
+    double rate;
 
-	// EUR is not part of table, so we need to
-	// treat it separately
-	if (currency == "EUR"){
-		rate = (double) 1;
-		return rate;
-	}
+    // EUR is not part of table, so we need to
+    // treat it separately
+    if (currency == "EUR") {
+        rate = (double) 1;
+        return rate;
+    }
 
-	try {
-		rate = m_rates.at(currency);
-	} catch (std::exception &e) {
-		return (double) -1;
-	}
-	
-	return rate;	
+    try {
+        rate = m_rates.at(currency);
+    } catch (std::exception &e) {
+        return (double) -1;
+    }
+
+    return rate;
 }
 
 double RateManager::Convert(const double &sum, const std::string &fromCurrency, const std::string &toCurrency)
@@ -251,4 +305,9 @@ double RateManager::Convert(const double &sum, const std::string &fromCurrency, 
     }
 
     return sum * toRate / fromRate;
+}
+
+const time_t RateManager::GetRatesLastUpdatedDate()
+{
+    return m_lastUpdated;
 }
