@@ -48,7 +48,7 @@ static const char *LOCAL_STORAGE_FN = "currency_converter.gt";
 std::string _getStorageFileName()
 {
 	std::string storageFn = _getLocalDir();
-    storageFn += LOCAL_STORAGE_FN;
+	storageFn += LOCAL_STORAGE_FN;
 
     return storageFn;
 }
@@ -98,17 +98,17 @@ static bool after_ecb_update_time_limit (const struct tm *now)
 
 time_t getEcbLastUpdateTime()
 {
-    //
-    // From "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html"
-    // The reference rates are usually updated around 16:00 CET on every working day,
-    // except on TARGET closing days
-    // This means that reference rates are updated Monday to Friday around 15:00 UTC
-    // Our implementation gives time to the ECB to update the rates, so our reference
-    // update time will be a bit later than 15:00 UTC
-    // Note that our implementation DOES NOT take TARGET closing days into account
-    // This is a limitation.
+	//
+	// From "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html"
+	// The reference rates are usually updated around 16:00 CET on every working day,
+	// except on TARGET closing days
+	// This means that reference rates are updated Monday to Friday around 15:00 UTC
+	// Our implementation gives time to the ECB to update the rates, so our reference
+	// update time will be a bit later than 15:00 UTC
+	// Note that our implementation DOES NOT take TARGET closing days into account
+	// This is a limitation.
 
-    // Here, implementation computes the last update date and time from the current UTC time
+	// Here, implementation computes the last update date and time from the current UTC time
 
 	// Get current UTC time
 	time_t utcNow_;
@@ -116,8 +116,8 @@ time_t getEcbLastUpdateTime()
 	struct tm * utcNow = gmtime ( &utcNow_ );
 
 	// Now, find what was the last day rate were updated
-	// If current UTC time is before time limit, rates were updated yesterday or last friday
-	// otherwise, they were updated today
+	// If current UTC time is before time limit, rates were updated yesterday or
+	// last friday otherwise, they were updated today
 	int num_of_days_to_rewind_to = 0;
 
 	// Get last update day
@@ -128,12 +128,12 @@ time_t getEcbLastUpdateTime()
 			break;
 		case 1: // monday
 			if (after_ecb_update_time_limit(utcNow)) {
-				// Current UTC time is after update time limit: rates were updated today
+				// Current UTC time is after update time limit:
+				// rates were updated today
 				num_of_days_to_rewind_to = 0;
-			}
-			else {
-				// Current UTC time is before update time limit, last update was on friday
-				// so 3 days ago.
+			} else {
+				// Current UTC time is before update time limit:
+				// last update was on friday, so 3 days ago.
 				num_of_days_to_rewind_to = 3;
 			}
 			break;
@@ -142,11 +142,13 @@ time_t getEcbLastUpdateTime()
 		case 4: // thursday
 		case 5: // friday
 			if (after_ecb_update_time_limit(utcNow)) {
-				// Current UTC time is after update time limit: rates were updated today
+				// Current UTC time is after update time limit:
+				// rates were updated today
 				num_of_days_to_rewind_to = 0;
 			}
 			else {
-				// Current UTC time is before update time limit, last update was yesterday
+				// Current UTC time is before update time limit:
+				// last update was yesterday
 				num_of_days_to_rewind_to = 1;
 			}
 			break;

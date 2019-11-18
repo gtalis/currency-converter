@@ -49,7 +49,7 @@ private:
 
 	CurrencyRatesTable m_rates;
 	time_t m_lastUpdated;
-    static RateManager m_instance;
+	static RateManager m_instance;
 };
 } // namespace CurrencyConverter
 

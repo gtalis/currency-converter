@@ -53,7 +53,7 @@ void usage()
 int main(int argc, char **argv)
 {
 	CurrencyConverter::RateManager &rr = CurrencyConverter::RateManager::Instance();
-	
+
 	std::string fromCurrency = {};
 	std::string toCurrency = {};
 	double sum = 0;
@@ -67,21 +67,21 @@ int main(int argc, char **argv)
 		usage();
 		return 0;
 	}
-	
+
 	int c ;
-    while( ( c = getopt (argc, argv, "f:t:s:vh") ) != -1 )
-    {
-        switch(c)
-        {
-            case 'f':
-                if(optarg) fromCurrency = optarg;
-                break;
-            case 't':
-                if(optarg) toCurrency = optarg;
-                break;
-            case 's':
-                if(optarg) sum = std::atof(optarg);
-                break;
+	while( ( c = getopt (argc, argv, "f:t:s:vh") ) != -1 )
+	{
+		switch(c)
+		{
+			case 'f':
+				if(optarg) fromCurrency = optarg;
+				break;
+			case 't':
+				if(optarg) toCurrency = optarg;
+				break;
+			case 's':
+				if(optarg) sum = std::atof(optarg);
+				break;
 			case 'v':
 				print_details();
 				return 0;
@@ -90,13 +90,13 @@ int main(int argc, char **argv)
 				usage();
 				return 0;
 				break;
-        }
-    }
+			}
+	}
 
 
 	print_details();
 	double convertedSum = rr.Convert(sum, fromCurrency, toCurrency);
-    if (convertedSum >= 0) {
+	if (convertedSum >= 0) {
 		time_t update = rr.GetRatesLastUpdatedDate();
 		printf("%.2f %s = %.2f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
 		std::cout << "European Central Bank reference rates last update: " << ctime ( &update );
