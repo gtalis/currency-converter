@@ -39,14 +39,14 @@ void usage()
 	std::cout <<
 		"Usage: \n" \
 		"  currencyconverter [options]\n" \
-		"  currencyconverter -s <sum> -f <currency> -t <currency>\n\n" \
+		"  currencyconverter -a <amount> -f <currency> -t <currency>\n\n" \
 		"Performs currency conversion based on European Central Bank reference rates \n\n" \
 		"Options: \n" \
 		"-h 		Displays this help message\n" \
 		"-v 		Displays tool version\n" \
-		"-t <currency>	Defines the currency to convert the sum to\n" \
-		"-f <currency>	Defines the currency to convert the sum from\n" \
-		"-s <sum>	Sets the the sum to convert\n";
+		"-t <currency>	Defines the currency to convert the amount to\n" \
+		"-f <currency>	Defines the currency to convert the amount from\n" \
+		"-a <amount>	Sets the amount to convert\n";
 }
 
 
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 
 	std::string fromCurrency = {};
 	std::string toCurrency = {};
-	double sum = 0;
+	double amount = 0;
 
 	// For now, we only accept:
 	// - one argument (help or version)
@@ -69,7 +69,7 @@ int main(int argc, char **argv)
 	}
 
 	int c ;
-	while( ( c = getopt (argc, argv, "f:t:s:vh") ) != -1 )
+	while( ( c = getopt (argc, argv, "f:t:a:vh") ) != -1 )
 	{
 		switch(c)
 		{
@@ -79,8 +79,8 @@ int main(int argc, char **argv)
 			case 't':
 				if(optarg) toCurrency = optarg;
 				break;
-			case 's':
-				if(optarg) sum = std::atof(optarg);
+			case 'a':
+				if(optarg) amount = std::atof(optarg);
 				break;
 			case 'v':
 				print_details();
@@ -90,15 +90,14 @@ int main(int argc, char **argv)
 				usage();
 				return 0;
 				break;
-			}
+		}
 	}
 
-
 	print_details();
-	double convertedSum = rr.Convert(sum, fromCurrency, toCurrency);
-	if (convertedSum >= 0) {
+	double convertedAmount = rr.Convert(amount, fromCurrency, toCurrency);
+	if (convertedAmount >= 0) {
 		time_t update = rr.GetRatesLastUpdatedDate();
-		printf("%.2f %s = %.2f %s\n", sum, fromCurrency.c_str(), convertedSum, toCurrency.c_str());
+		printf("%.2f %s = %.2f %s\n", amount, fromCurrency.c_str(), convertedAmount, toCurrency.c_str());
 		std::cout << "European Central Bank reference rates last update: " << ctime ( &update );
 	}
 

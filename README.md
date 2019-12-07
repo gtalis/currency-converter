@@ -20,4 +20,4 @@ It uses the [European Central Bank reference rates](https://www.ecb.europa.eu/st
 	
 
 ## Usage
-	currencyconverter -s <sum_to_convert> -f <source_currency> -t <destination_currency>
+	currencyconverter -a <amount_to_convert> -f <source_currency> -t <destination_currency>

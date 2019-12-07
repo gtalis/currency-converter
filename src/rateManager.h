@@ -33,7 +33,7 @@ class RateManager {
 public:
 	static RateManager& Instance();
 	void ExtractRatesFromECBXml(void *buffer, size_t len);
-	double Convert(const double &sum, const std::string &fromCurrency, const std::string &toCurrency);
+	double Convert(const double &amount, const std::string &fromCurrency, const std::string &toCurrency);
 	const time_t GetRatesLastUpdatedDate();
 
 private:

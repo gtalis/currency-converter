@@ -300,7 +300,7 @@ double RateManager::CurrencyToRate(const std::string &currency)
     return rate;
 }
 
-double RateManager::Convert(const double &sum, const std::string &fromCurrency, const std::string &toCurrency)
+double RateManager::Convert(const double &amount, const std::string &fromCurrency, const std::string &toCurrency)
 {
     if ( getRates() < 0) {
         return (double) -1;
@@ -318,12 +318,12 @@ double RateManager::Convert(const double &sum, const std::string &fromCurrency, 
         return (double) -1;
     }
 
-   if (sum < 0) {
-        std::cerr << "ERROR: Sum to convert (" << sum << ") is invalid\n";
+   if (amount < 0) {
+        std::cerr << "ERROR: Amount to convert (" << amount << ") is invalid\n";
         return (double) -1;
     }
 
-    return sum * toRate / fromRate;
+    return amount * toRate / fromRate;
 }
 
 const time_t RateManager::GetRatesLastUpdatedDate()
