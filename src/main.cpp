@@ -19,6 +19,7 @@
 
 #include "rateManager.h"
 #include <unistd.h>
+#include <stdlib.h>
 #include <string>
 #include <ctime>
 
@@ -89,6 +90,10 @@ int main(int argc, char **argv)
 			case 'h':
 				usage();
 				return 0;
+				break;
+			default:
+				usage();
+				exit(EXIT_FAILURE);
 				break;
 		}
 	}
