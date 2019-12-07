@@ -103,7 +103,7 @@ int main(int argc, char **argv)
 	if (convertedAmount >= 0) {
 		time_t update = rr.GetRatesLastUpdatedDate();
 		printf("%.2f %s = %.2f %s\n", amount, fromCurrency.c_str(), convertedAmount, toCurrency.c_str());
-		std::cout << "European Central Bank reference rates last update: " << ctime ( &update );
+		std::cout << "European Central Bank reference rates last update: UTC " << ctime ( &update );
 	}
 
 	return 0;
